@@ -1,0 +1,14 @@
+CHAVAS POLLO
+------------------------
+Orden #: 3
+Fecha: 17/06/2026 1:08:47 am
+Empleado: Osman
+
+Producto	    Cant	    Subtotal
+------------------------
+Carne asada + gallopinto	1	230.00
+Carne asada + gallopinto	1	230.00
+Chia con tamarindo	1	40.00
+------------------------
+TOTAL: 500.00
+------------------------

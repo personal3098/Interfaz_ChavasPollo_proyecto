@@ -1,0 +1,14 @@
+CHAVAS POLLO
+------------------------
+Orden #: 14
+Fecha: 17/06/2026 7:43:29 pm
+Empleado: Yesenia
+
+Producto	/Cant     	/Subtotal
+------------------------
+Combo#1	1	115.00
+Tacos	1	70.00
+Guayaba	1	40.00
+------------------------
+TOTAL: 225.00
+------------------------

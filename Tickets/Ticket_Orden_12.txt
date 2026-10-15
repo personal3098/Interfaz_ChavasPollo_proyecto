@@ -1,0 +1,13 @@
+CHAVAS POLLO
+------------------------
+Orden #: 12
+Fecha: 17/06/2026 2:16:20 pm
+Empleado: Sabrina
+
+Producto	/Cant     	/Subtotal
+------------------------
+Combo#1	1	115.00
+CocaCola 3 litros desechable	1	90.00
+------------------------
+TOTAL: 205.00
+------------------------

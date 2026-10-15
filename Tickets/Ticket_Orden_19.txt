@@ -1,0 +1,15 @@
+CHAVAS POLLO
+------------------------
+Orden #: 19
+Fecha: 20/06/2026 8:09:20 am
+Empleado: Osman
+
+Producto	/Cant     	/Subtotal
+------------------------
+Carne con maduro + gallopinto	1	230.00
+Calala	1	40.00
+Pollo asado + gallopinto	1	210.00
+Carne con maduro + gallopinto	1	230.00
+------------------------
+TOTAL: 710.00
+------------------------

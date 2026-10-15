@@ -1,0 +1,14 @@
+CHAVAS POLLO
+------------------------
+Orden #: 20
+Fecha: 20/06/2026 8:15:26 am
+Empleado: Osman
+
+Producto	/Cant     	/Subtotal
+------------------------
+Tacos	1	70.00
+Carne asada + gallopinto	1	230.00
+CocaCola 1/2 litro	1	30.00
+------------------------
+TOTAL: 330.00
+------------------------
