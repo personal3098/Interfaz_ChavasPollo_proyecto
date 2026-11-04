@@ -1,289 +1,307 @@
-﻿using Microsoft.Data.SqlClient;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Text;
+﻿using System;
+using System.Linq;
 using System.Windows.Forms;
-using static System.Net.Mime.MediaTypeNames;
+using Interfaz_ChavasPollo_proyecto.Models;
 
 namespace Interfaz_ChavasPollo_proyecto
 {
     public partial class frmmenu : Form
     {
+        private int idOriginalMenu;
+
         public frmmenu()
         {
             InitializeComponent();
         }
-        SqlConnection cn =
-    new SqlConnection(Conexion.cadena);
 
         private void frmmenu_Load(object sender, EventArgs e)
         {
             CargarCategorias();
             MostrarMenu();
         }
-        // De aqui en adelante se ocupa de manera similar los modos de cargar desde sql con select o
-        //dependiendo de la consulta asi que solo agregare un mensaje cuando tenga algo nuevo o relevante
-        //a explicar
+
+        // Cargar las categorías desde la base de datos
         private void CargarCategorias()
         {
-            using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+            using (var db = Conexion.CrearContexto())
             {
-                string consulta =
-                    "SELECT id_categoria, nombre_cat FROM categorias";
+                var categorias = db.categorias
+                    .Select(c => new
+                    {
+                        c.id_categoria,
+                        c.nombre_cat
+                    })
+                    .ToList();
 
-                SqlDataAdapter da = new SqlDataAdapter(consulta, cn);
-
-                DataTable dt = new DataTable();
-
-                da.Fill(dt);
-
-                cmbcat.DataSource = dt;
+                cmbcat.DataSource = categorias;
                 cmbcat.DisplayMember = "nombre_cat";
                 cmbcat.ValueMember = "id_categoria";
+                cmbcat.SelectedIndex = -1;
             }
         }
+
+        // Mostrar los platillos registrados
         private void MostrarMenu()
         {
-            using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+            using (var db = Conexion.CrearContexto())
             {
-                string consulta = @"SELECT
-                  m.id_menu,
-                  m.nombre_platillo,
-                  m.precio,
-                  m.id_categoria,
-                  c.nombre_cat
-                    FROM menu m
-                   INNER JOIN categorias c
-                   ON m.id_categoria = c.id_categoria";
+                var datos = (
+                    from m in db.menus
+                    join c in db.categorias
+                    on m.id_categoria equals c.id_categoria
+                    select new
+                    {
+                        m.id_menu,
+                        m.nombre_platillo,
+                        m.precio,
+                        m.id_categoria,
+                        c.nombre_cat
+                    }
+                ).ToList();
 
-                SqlDataAdapter da = new SqlDataAdapter(consulta, cn);
+                dgvmenu.DataSource = datos;
 
-                DataTable dt = new DataTable();
-
-                da.Fill(dt);
-
-                dgvmenu.DataSource = dt;
                 dgvmenu.AutoSizeColumnsMode =
-                 DataGridViewAutoSizeColumnsMode.Fill;
+                    DataGridViewAutoSizeColumnsMode.Fill;
 
                 dgvmenu.SelectionMode =
                     DataGridViewSelectionMode.FullRowSelect;
 
                 dgvmenu.ReadOnly = true;
-                dgvmenu.Columns["nombre_platillo"].FillWeight = 200;
+                dgvmenu.AllowUserToAddRows = false;
 
+                dgvmenu.Columns["nombre_platillo"].FillWeight = 200;
                 dgvmenu.Columns["id_categoria"].Visible = false;
             }
         }
 
+        // Agregar un nuevo platillo
         private void butagr_Click(object sender, EventArgs e)
         {
-
-            if (textmen.Text == "" ||
-                    textnommen.Text == "" ||
-                    textprecio.Text == "")
+            if (string.IsNullOrWhiteSpace(textmen.Text) ||
+                string.IsNullOrWhiteSpace(textnommen.Text) ||
+                string.IsNullOrWhiteSpace(textprecio.Text))
             {
-                MessageBox.Show("Complete todos los campos");
+                MessageBox.Show("Complete todos los campos.");
                 return;
             }
 
             if (textnommen.Text.Any(char.IsDigit))
             {
-                MessageBox.Show("El nombre del producto no puede contener números.");
+                MessageBox.Show(
+                    "El nombre del producto no puede contener números.");
+
                 textnommen.Focus();
                 return;
             }
-            if (textmen.Text.Any(char.IsAsciiLetter))
+
+            if (!int.TryParse(textmen.Text, out int id))
             {
-                MessageBox.Show("El Id no puede contener letras.");
+                MessageBox.Show("Ingrese un ID válido.");
                 textmen.Focus();
                 return;
             }
-            if (textmen.Text.Any(char.IsSymbol))
+
+            if (!decimal.TryParse(textprecio.Text, out decimal precio))
             {
-                MessageBox.Show("El Id no puede contener letras.");
-                textmen.Focus();
-                return;
-            }
-            if (textprecio.Text.Any(char.IsAsciiLetter))
-            {
-                MessageBox.Show("El precio no puede contener letras.");
+                MessageBox.Show("Ingrese un precio válido.");
                 textprecio.Focus();
                 return;
             }
 
-            if (cmbcat.SelectedIndex == -1)
+            if (precio < 0)
             {
-                MessageBox.Show("Debe seleccionar un tipo de platillo.");
+                MessageBox.Show("El precio no puede ser negativo.");
+                textprecio.Focus();
                 return;
             }
-            using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+
+            if (cmbcat.SelectedValue == null)
             {
-                string verificar = "SELECT COUNT(*) FROM menu WHERE id_menu = @id";
+                MessageBox.Show("Debe seleccionar una categoría.");
+                return;
+            }
 
-                SqlCommand cmdVerificar = new SqlCommand(verificar, cn);
-                cmdVerificar.Parameters.AddWithValue("@id", int.Parse(textmen.Text));
+            using (var db = Conexion.CrearContexto())
+            {
+                // Comprobar si el ID ya existe
+                bool existe = db.menus.Any(m => m.id_menu == id);
 
-                cn.Open();
-
-                int existe = (int)cmdVerificar.ExecuteScalar();
-
-                if (existe > 0)
+                if (existe)
                 {
-                    MessageBox.Show("El numero de ID que escribio ya está registrado.");
-                    cn.Close();
+                    MessageBox.Show(
+                        "El número de ID que escribió ya está registrado.");
+
                     textmen.Focus();
                     return;
                 }
-                string consulta = @"INSERT INTO menu
-        (id_menu, nombre_platillo, precio, id_categoria)
-        VALUES
-        (@id, @nombre, @precio, @categoria)";
 
-                SqlCommand cmd = new SqlCommand(consulta, cn);
+                // Crear el objeto del nuevo platillo
+                var nuevoMenu = new menu
+                {
+                    id_menu = id,
+                    nombre_platillo = textnommen.Text.Trim(),
+                    precio = precio,
+                    id_categoria = Convert.ToInt32(cmbcat.SelectedValue)
+                };
 
-                cmd.Parameters.AddWithValue("@id",
-                    int.Parse(textmen.Text));
+                db.menus.Add(nuevoMenu);
 
-                cmd.Parameters.AddWithValue("@nombre",
-                    textnommen.Text);
-
-                cmd.Parameters.AddWithValue("@precio",
-                    decimal.Parse(textprecio.Text));
-
-                cmd.Parameters.AddWithValue("@categoria",
-                    cmbcat.SelectedValue);
-
-
-       
-                cmd.ExecuteNonQuery();
+                db.SaveChanges();
 
                 MessageBox.Show(
-                    "Platillo agregado correctamente",
+                    "Platillo agregado correctamente.",
                     "Menú",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
-
-                MostrarMenu();
-                
             }
+
+            LimpiarCampos();
+            MostrarMenu();
         }
-        private int idOriginalMenu;
 
-
-        private void dgvmenu_CellClick(object sender, DataGridViewCellEventArgs e)
+        // Seleccionar un platillo de la tabla
+        private void dgvmenu_CellClick(
+            object sender, DataGridViewCellEventArgs e)
         {
+            if (e.RowIndex < 0)
+                return;
 
+            DataGridViewRow fila = dgvmenu.Rows[e.RowIndex];
 
-            if (e.RowIndex >= 0 && e.RowIndex <= (dgvmenu.RowCount - 2))
-            {
-                DataGridViewRow fila = dgvmenu.Rows[e.RowIndex];
+            idOriginalMenu =
+                Convert.ToInt32(fila.Cells["id_menu"].Value);
 
-                idOriginalMenu = Convert.ToInt32(fila.Cells["id_menu"].Value);
+            textmen.Text =
+                fila.Cells["id_menu"].Value.ToString();
 
+            textnommen.Text =
+                fila.Cells["nombre_platillo"].Value.ToString();
 
-                textmen.Text = fila.Cells["id_menu"].Value.ToString();
-                textnommen.Text = fila.Cells["nombre_platillo"].Value.ToString();
-                textprecio.Text = fila.Cells["precio"].Value.ToString();
+            textprecio.Text =
+                fila.Cells["precio"].Value.ToString();
 
-                cmbcat.SelectedValue =
+            cmbcat.SelectedValue =
                 Convert.ToInt32(fila.Cells["id_categoria"].Value);
 
-            }
+            // El ID no se modifica porque es la clave primaria
+            textmen.ReadOnly = true;
         }
 
+        // Modificar un platillo existente
         private void btnmodi_Click(object sender, EventArgs e)
         {
-
-            using (SqlConnection cn =
-                new SqlConnection(Conexion.cadena))
+            if (idOriginalMenu <= 0)
             {
-                string consulta = @"
-        UPDATE menu
-        SET id_menu = @nuevoId,
-            nombre_platillo = @nombre,
-            precio = @precio,
-            id_categoria = @categoria
-        WHERE id_menu = @idOriginal";
+                MessageBox.Show("Seleccione un platillo de la tabla.");
+                return;
+            }
 
-                SqlCommand cmd =
-                    new SqlCommand(consulta, cn);
+            if (string.IsNullOrWhiteSpace(textnommen.Text) ||
+                string.IsNullOrWhiteSpace(textprecio.Text))
+            {
+                MessageBox.Show("Complete todos los campos.");
+                return;
+            }
 
-                cmd.Parameters.AddWithValue(
-                    "@nuevoId",
-                    int.Parse(textmen.Text));
+            if (textnommen.Text.Any(char.IsDigit))
+            {
+                MessageBox.Show(
+                    "El nombre del producto no puede contener números.");
 
-                cmd.Parameters.AddWithValue(
-                    "@idOriginal",
-                    idOriginalMenu);
+                textnommen.Focus();
+                return;
+            }
 
-                cmd.Parameters.AddWithValue(
-                    "@nombre",
-                    textnommen.Text);
+            if (!decimal.TryParse(textprecio.Text, out decimal precio))
+            {
+                MessageBox.Show("Ingrese un precio válido.");
+                textprecio.Focus();
+                return;
+            }
 
-                cmd.Parameters.AddWithValue(
-                    "@precio",
-                    decimal.Parse(textprecio.Text));
+            if (precio < 0)
+            {
+                MessageBox.Show("El precio no puede ser negativo.");
+                textprecio.Focus();
+                return;
+            }
 
-                cmd.Parameters.AddWithValue(
-                    "@categoria",
-                    cmbcat.SelectedValue);
+            if (cmbcat.SelectedValue == null)
+            {
+                MessageBox.Show("Debe seleccionar una categoría.");
+                return;
+            }
 
-                cn.Open();
+            using (var db = Conexion.CrearContexto())
+            {
+                var platillo = db.menus.Find(idOriginalMenu);
 
-                cmd.ExecuteNonQuery();
+                if (platillo == null)
+                {
+                    MessageBox.Show("No se encontró el platillo.");
+                    return;
+                }
+
+                platillo.nombre_platillo = textnommen.Text.Trim();
+                platillo.precio = precio;
+                platillo.id_categoria =
+                    Convert.ToInt32(cmbcat.SelectedValue);
+
+                db.SaveChanges();
 
                 MessageBox.Show(
-                    "Platillo modificado correctamente",
+                    "Platillo modificado correctamente.",
                     "Menú",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
-
-                MostrarMenu();
             }
+
+            LimpiarCampos();
+            MostrarMenu();
         }
 
+        // Eliminar un platillo
         private void buteli_Click(object sender, EventArgs e)
         {
-            DialogResult respuesta =
-    MessageBox.Show(
-    "¿Desea eliminar este platillo?",
-    "Confirmación",
-    MessageBoxButtons.YesNo,
-    MessageBoxIcon.Question);
+            if (idOriginalMenu <= 0)
+            {
+                MessageBox.Show("Seleccione un platillo de la tabla.");
+                return;
+            }
+
+            DialogResult respuesta = MessageBox.Show(
+                "¿Desea eliminar este platillo?",
+                "Confirmación",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
 
             if (respuesta == DialogResult.Yes)
             {
-                using (SqlConnection cn =
-                    new SqlConnection(Conexion.cadena))
+                using (var db = Conexion.CrearContexto())
                 {
-                    string consulta =
-                        "DELETE FROM menu WHERE id_menu=@id";
+                    var platillo = db.menus.Find(idOriginalMenu);
 
-                    SqlCommand cmd =
-                        new SqlCommand(consulta, cn);
+                    if (platillo == null)
+                    {
+                        MessageBox.Show("No se encontró el platillo.");
+                        return;
+                    }
 
-                    cmd.Parameters.AddWithValue(
-                        "@id",
-                        int.Parse(textmen.Text));
+                    db.menus.Remove(platillo);
 
-                    cn.Open();
-
-                    cmd.ExecuteNonQuery();
+                    db.SaveChanges();
 
                     MessageBox.Show(
-                        "Platillo eliminado",
+                        "Platillo eliminado correctamente.",
                         "Menú",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information);
-
-                    MostrarMenu();
                 }
-            }
 
+                LimpiarCampos();
+                MostrarMenu();
+            }
         }
 
         private void textnommen_TextChanged(object sender, EventArgs e)
@@ -291,57 +309,102 @@ namespace Interfaz_ChavasPollo_proyecto
 
         }
 
+        // Buscar platillos por nombre
         private void butbusca_Click(object sender, EventArgs e)
         {
-            using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+            using (var db = Conexion.CrearContexto())
             {
-                string consulta = @"
-        SELECT
-            m.id_menu,
-            m.nombre_platillo,
-            m.precio,
-            m.id_categoria,
-            c.nombre_cat
-        FROM menu m
-        INNER JOIN categorias c
-            ON m.id_categoria = c.id_categoria
-        WHERE m.nombre_platillo LIKE @buscar";
+                string busqueda = textbusca.Text.Trim();
 
-                SqlDataAdapter da = new SqlDataAdapter(consulta, cn);
+                var consulta =
+                    from m in db.menus
+                    join c in db.categorias
+                    on m.id_categoria equals c.id_categoria
+                    select new
+                    {
+                        m.id_menu,
+                        m.nombre_platillo,
+                        m.precio,
+                        m.id_categoria,
+                        c.nombre_cat
+                    };
 
-                da.SelectCommand.Parameters.AddWithValue(
-                    "@buscar",
-                    "%" + textbusca.Text + "%");
+                if (!string.IsNullOrWhiteSpace(busqueda))
+                {
+                    consulta = consulta.Where(m =>
+                        m.nombre_platillo.Contains(busqueda));
+                }
 
-                DataTable dt = new DataTable();
+                dgvmenu.DataSource = consulta.ToList();
 
-                da.Fill(dt);
+                dgvmenu.AutoSizeColumnsMode =
+                    DataGridViewAutoSizeColumnsMode.Fill;
 
-                dgvmenu.DataSource = dt;
+                dgvmenu.SelectionMode =
+                    DataGridViewSelectionMode.FullRowSelect;
 
+                dgvmenu.ReadOnly = true;
+                dgvmenu.AllowUserToAddRows = false;
+
+                dgvmenu.Columns["nombre_platillo"].FillWeight = 200;
                 dgvmenu.Columns["id_categoria"].Visible = false;
             }
         }
 
+        // Limpiar los campos del formulario
+        private void LimpiarCampos()
+        {
+            textmen.Clear();
+            textnommen.Clear();
+            textprecio.Clear();
+
+            cmbcat.SelectedIndex = -1;
+
+            idOriginalMenu = 0;
+
+            textmen.ReadOnly = false;
+
+            textmen.Focus();
+        }
+
+        // Permitir únicamente números en el ID
         private void textmen_KeyPress(object sender, KeyPressEventArgs e)
         {
-            if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar))
+            if (!char.IsControl(e.KeyChar) &&
+                !char.IsDigit(e.KeyChar))
             {
                 e.Handled = true;
             }
         }
 
-        private void textnommen_KeyPress(object sender, KeyPressEventArgs e)
+        // Permitir letras y espacios en el nombre
+        private void textnommen_KeyPress(
+            object sender, KeyPressEventArgs e)
         {
-            if (!char.IsControl(e.KeyChar) && !char.IsLetter(e.KeyChar))
+            if (!char.IsControl(e.KeyChar) &&
+                !char.IsLetter(e.KeyChar) &&
+                !char.IsWhiteSpace(e.KeyChar))
             {
                 e.Handled = true;
             }
         }
 
-        private void textprecio_KeyPress(object sender, KeyPressEventArgs e)
+        // Permitir números y separador decimal en el precio
+        private void textprecio_KeyPress(
+            object sender, KeyPressEventArgs e)
         {
-            if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar))
+            char separador = System.Globalization.CultureInfo
+                .CurrentCulture.NumberFormat.NumberDecimalSeparator[0];
+
+            if (!char.IsControl(e.KeyChar) &&
+                !char.IsDigit(e.KeyChar) &&
+                e.KeyChar != separador)
+            {
+                e.Handled = true;
+            }
+
+            if (e.KeyChar == separador &&
+                textprecio.Text.Contains(separador))
             {
                 e.Handled = true;
             }

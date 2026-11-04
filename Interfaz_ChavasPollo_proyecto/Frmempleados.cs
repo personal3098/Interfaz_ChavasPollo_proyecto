@@ -1,63 +1,69 @@
-﻿using Microsoft.Data.SqlClient;
+﻿
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Text;
+using System.Linq;
 using System.Windows.Forms;
-using static System.Net.Mime.MediaTypeNames;
+using Interfaz_ChavasPollo_proyecto.Models;
 
 namespace Interfaz_ChavasPollo_proyecto
 {
     public partial class Frmempleados : Form
     {
+        private int idOriginalEmpleado;
+
         public Frmempleados()
         {
             InitializeComponent();
-            MostrarEmpleados();
-            Limpiar();
+        }
+
+        // Cargar los datos al abrir el formulario
+        private void Frmempleados_Load(object sender, EventArgs e)
+        {
             CargarRoles();
             CargarTurnos();
+            MostrarEmpleados();
+            Limpiar();
         }
-        SqlConnection cn =
-    new SqlConnection(Conexion.cadena);
+
         private void textBox1_TextChanged(object sender, EventArgs e)
         {
 
         }
+
+        // Mostrar los empleados registrados
         private void MostrarEmpleados()
         {
-            using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+            using (var db = Conexion.CrearContexto())
             {
-                string consulta = @"SELECT 
-                            e.id_empleado,
-                            e.nombre,
-                            e.telefono,
-                            r.nombre_rol,
-                            t.nombre_turno
-                            FROM empleados e
-                            INNER JOIN roles r
-                            ON e.id_rol = r.id_rol
-                            INNER JOIN turnos t
-                            ON e.id_turnos = t.id_turnos";
+                var datos = (
+                    from e in db.empleados
+                    join r in db.roles
+                    on e.id_rol equals r.id_rol
+                    join t in db.turnos
+                    on e.id_turnos equals t.id_turnos
+                    select new
+                    {
+                        e.id_empleado,
+                        e.nombre,
+                        e.telefono,
+                        r.nombre_rol,
+                        t.nombre_turno
+                    }
+                ).ToList();
 
-                SqlDataAdapter da = new SqlDataAdapter(consulta, cn);
-                DataTable dt = new DataTable();
+                dgvemp.DataSource = datos;
 
-                da.Fill(dt);
                 dgvemp.AutoSizeColumnsMode =
-                DataGridViewAutoSizeColumnsMode.Fill;
+                    DataGridViewAutoSizeColumnsMode.Fill;
 
                 dgvemp.SelectionMode =
                     DataGridViewSelectionMode.FullRowSelect;
 
                 dgvemp.ReadOnly = true;
-
-                dgvemp.DataSource = dt;
+                dgvemp.AllowUserToAddRows = false;
             }
         }
-        //modo para limpiar las celdas cada ves que se vaya a usar
+
+        // Limpiar los campos del formulario
         private void Limpiar()
         {
             textidemp.Clear();
@@ -67,51 +73,149 @@ namespace Interfaz_ChavasPollo_proyecto
             cmbcargo.SelectedIndex = -1;
             cmbturno.SelectedIndex = -1;
 
+            idOriginalEmpleado = 0;
+
+            textidemp.ReadOnly = false;
+
             textidemp.Focus();
         }
 
+        // Cargar los roles
         private void CargarRoles()
         {
-            using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+            using (var db = Conexion.CrearContexto())
             {
-                string consulta = "SELECT id_rol, nombre_rol FROM roles";
+                var roles = db.roles
+                    .Select(r => new
+                    {
+                        r.id_rol,
+                        r.nombre_rol
+                    })
+                    .ToList();
 
-                SqlDataAdapter da = new SqlDataAdapter(consulta, cn);
-                DataTable dt = new DataTable();
-
-                da.Fill(dt);
-
-                cmbcargo.DataSource = dt;
+                cmbcargo.DataSource = roles;
                 cmbcargo.DisplayMember = "nombre_rol";
                 cmbcargo.ValueMember = "id_rol";
+                cmbcargo.SelectedIndex = -1;
             }
         }
 
+        // Cargar los turnos
         private void CargarTurnos()
         {
-            using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+            using (var db = Conexion.CrearContexto())
             {
-                string consulta = "SELECT id_turnos, nombre_turno FROM turnos";
+                var turnos = db.turnos
+                    .Select(t => new
+                    {
+                        t.id_turnos,
+                        t.nombre_turno
+                    })
+                    .ToList();
 
-                SqlDataAdapter da = new SqlDataAdapter(consulta, cn);
-                DataTable dt = new DataTable();
-
-                da.Fill(dt);
-
-                cmbturno.DataSource = dt;
+                cmbturno.DataSource = turnos;
                 cmbturno.DisplayMember = "nombre_turno";
                 cmbturno.ValueMember = "id_turnos";
+                cmbturno.SelectedIndex = -1;
             }
         }
 
+        // Agregar un empleado
         private void butagr_Click(object sender, EventArgs e)
         {
-
-            if (textidemp.Text == "" ||
-                    textnombrem.Text == "" ||
-                    texttel.Text == "")
+            if (string.IsNullOrWhiteSpace(textidemp.Text) ||
+                string.IsNullOrWhiteSpace(textnombrem.Text) ||
+                string.IsNullOrWhiteSpace(texttel.Text))
             {
-                MessageBox.Show("Complete todos los campos");
+                MessageBox.Show("Complete todos los campos.");
+                return;
+            }
+
+            if (textnombrem.Text.Any(char.IsDigit))
+            {
+                MessageBox.Show(
+                    "El nombre no puede contener números.");
+
+                textnombrem.Focus();
+                return;
+            }
+
+            if (!int.TryParse(textidemp.Text, out int id))
+            {
+                MessageBox.Show("Ingrese un ID válido.");
+                textidemp.Focus();
+                return;
+            }
+
+            if (!texttel.Text.All(char.IsDigit))
+            {
+                MessageBox.Show("El teléfono solo debe contener números.");
+                texttel.Focus();
+                return;
+            }
+
+            if (cmbcargo.SelectedValue == null ||
+                cmbturno.SelectedValue == null)
+            {
+                MessageBox.Show(
+                    "Debe seleccionar un cargo y un turno.");
+
+                return;
+            }
+
+            using (var db = Conexion.CrearContexto())
+            {
+                // Verificar si el ID ya existe
+                bool existe = db.empleados
+                    .Any(e => e.id_empleado == id);
+
+                if (existe)
+                {
+                    MessageBox.Show(
+                        "El número de ID que escribió ya está registrado.");
+
+                    textidemp.Focus();
+                    return;
+                }
+
+                // Crear el objeto empleado
+                var nuevoEmpleado = new empleado
+                {
+                    id_empleado = id,
+                    nombre = textnombrem.Text.Trim(),
+                    telefono = texttel.Text,
+                    id_rol = Convert.ToInt32(cmbcargo.SelectedValue),
+                    id_turnos = Convert.ToInt32(cmbturno.SelectedValue)
+                };
+
+                db.empleados.Add(nuevoEmpleado);
+
+                db.SaveChanges();
+
+                MessageBox.Show(
+                    "Empleado agregado correctamente.",
+                    "Acción ejecutada correctamente",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+
+            MostrarEmpleados();
+            Limpiar();
+        }
+
+        // Modificar un empleado
+        private void btnmod_Click(object sender, EventArgs e)
+        {
+            if (idOriginalEmpleado <= 0)
+            {
+                MessageBox.Show("Seleccione un empleado de la tabla.");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(textnombrem.Text) ||
+                string.IsNullOrWhiteSpace(texttel.Text))
+            {
+                MessageBox.Show("Complete todos los campos.");
                 return;
             }
 
@@ -121,209 +225,213 @@ namespace Interfaz_ChavasPollo_proyecto
                 textnombrem.Focus();
                 return;
             }
-            if (textidemp.Text.Any(char.IsAsciiLetter))
+
+            if (!texttel.Text.All(char.IsDigit))
             {
-                MessageBox.Show("El Id no puede contener letras.");
-                textidemp.Focus();
-                return;
-            }
-            if (texttel.Text.Any(char.IsAsciiLetter))
-            {
-                MessageBox.Show("El telefono no puede contener letras.");
+                MessageBox.Show("El teléfono solo debe contener números.");
                 texttel.Focus();
                 return;
             }
 
-            if (cmbcargo.SelectedIndex == -1 || cmbturno.SelectedIndex == -1)
+            if (cmbcargo.SelectedValue == null ||
+                cmbturno.SelectedValue == null)
             {
-                MessageBox.Show("Debe seleccionar un cargo y un turno.");
+                MessageBox.Show(
+                    "Debe seleccionar un cargo y un turno.");
+
                 return;
             }
-            using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+
+            using (var db = Conexion.CrearContexto())
             {
+                var empleadoActual =
+                    db.empleados.Find(idOriginalEmpleado);
 
-                string verificar = "SELECT COUNT(*) FROM empleados WHERE id_empleado = @id";
-
-                SqlCommand cmdVerificar = new SqlCommand(verificar, cn);
-                cmdVerificar.Parameters.AddWithValue("@id", int.Parse(textidemp.Text));
-
-                cn.Open();
-
-                int existe = (int)cmdVerificar.ExecuteScalar();
-
-                if (existe > 0)
+                if (empleadoActual == null)
                 {
-                    MessageBox.Show("El numero de ID que escribio ya está registrado.");
-                    cn.Close();
-                    textidemp.Focus();
+                    MessageBox.Show("No se encontró el empleado.");
                     return;
                 }
 
-                cn.Close();
-                string consulta = @"INSERT INTO empleados
-                            (id_empleado, nombre, telefono, id_rol, id_turnos)
-                            VALUES
-                            (@id, @nombre, @telefono, @rol, @turno)";
+                empleadoActual.nombre = textnombrem.Text.Trim();
+                empleadoActual.telefono = texttel.Text;
 
-                SqlCommand cmd = new SqlCommand(consulta, cn);
+                empleadoActual.id_rol =
+                    Convert.ToInt32(cmbcargo.SelectedValue);
 
-                cmd.Parameters.AddWithValue("@id", textidemp.Text);
-                cmd.Parameters.AddWithValue("@nombre", textnombrem.Text);
-                cmd.Parameters.AddWithValue("@telefono", texttel.Text);
-                cmd.Parameters.AddWithValue("@rol", cmbcargo.SelectedValue);
-                cmd.Parameters.AddWithValue("@turno", cmbturno.SelectedValue);
+                empleadoActual.id_turnos =
+                    Convert.ToInt32(cmbturno.SelectedValue);
 
-                cn.Open();
-                cmd.ExecuteNonQuery();
-                cn.Close();
+                db.SaveChanges();
 
-                MessageBox.Show("Empleado agregado correctamente",
-                    "Accion ejecutada corectamente",
+                MessageBox.Show(
+                    "Empleado modificado correctamente.",
+                    "Acción ejecutada correctamente",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
-
-                MostrarEmpleados();
-                Limpiar();
             }
+
+            MostrarEmpleados();
+            Limpiar();
         }
 
-        private void btnmod_Click(object sender, EventArgs e)
+        // Seleccionar un empleado de la tabla
+        private void dgvemp_CellClick(
+            object sender, DataGridViewCellEventArgs e)
         {
-            using (SqlConnection cn = new SqlConnection(Conexion.cadena))
-            {
-                string consulta = @"UPDATE empleados SET
-                            nombre = @nombre,
-                            telefono = @telefono,
-                            id_rol = @rol,
-                            id_turnos = @turno
-                            WHERE id_empleado = @id";
+            if (e.RowIndex < 0)
+                return;
 
-                SqlCommand cmd = new SqlCommand(consulta, cn);
+            DataGridViewRow fila = dgvemp.Rows[e.RowIndex];
 
-                cmd.Parameters.AddWithValue("@id", textidemp.Text);
-                cmd.Parameters.AddWithValue("@nombre", textnombrem.Text);
-                cmd.Parameters.AddWithValue("@telefono", texttel.Text);
-                cmd.Parameters.AddWithValue("@rol", cmbcargo.SelectedValue);
-                cmd.Parameters.AddWithValue("@turno", cmbturno.SelectedValue);
+            idOriginalEmpleado =
+                Convert.ToInt32(fila.Cells["id_empleado"].Value);
 
-                cn.Open();
-                cmd.ExecuteNonQuery();
-                cn.Close();
+            textidemp.Text =
+                fila.Cells["id_empleado"].Value.ToString();
 
-                MessageBox.Show("Empleado modificado correctamente",
-                    "Accion ejecutada correctamente",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
+            textnombrem.Text =
+                fila.Cells["nombre"].Value.ToString();
 
-                MostrarEmpleados();
-                Limpiar();
-            }
+            texttel.Text =
+                fila.Cells["telefono"].Value.ToString();
+
+            cmbcargo.Text =
+                fila.Cells["nombre_rol"].Value.ToString();
+
+            cmbturno.Text =
+                fila.Cells["nombre_turno"].Value.ToString();
+
+            // Evitar modificar la clave primaria
+            textidemp.ReadOnly = true;
         }
 
-        private void dgvemp_CellClick(object sender, DataGridViewCellEventArgs e)
-        {
-            textidemp.Text = dgvemp.CurrentRow.Cells["id_empleado"].Value.ToString();
-            textnombrem.Text = dgvemp.CurrentRow.Cells["nombre"].Value.ToString();
-            texttel.Text = dgvemp.CurrentRow.Cells["telefono"].Value.ToString();
-
-            cmbcargo.Text = dgvemp.CurrentRow.Cells["nombre_rol"].Value.ToString();
-            cmbturno.Text = dgvemp.CurrentRow.Cells["nombre_turno"].Value.ToString();
-        }
-
+        // Eliminar un empleado
         private void buteli_Click(object sender, EventArgs e)
         {
+            if (idOriginalEmpleado <= 0)
+            {
+                MessageBox.Show("Seleccione un empleado de la tabla.");
+                return;
+            }
+
             DialogResult respuesta = MessageBox.Show(
-                "Desea eliminar el empleado del sistema?",
-                "Confirme la eliminacion",
+                "¿Desea eliminar el empleado del sistema?",
+                "Confirme la eliminación",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question);
 
             if (respuesta == DialogResult.Yes)
-                using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+            {
+                using (var db = Conexion.CrearContexto())
                 {
-                    string consulta = "DELETE FROM empleados WHERE id_empleado = @id";
+                    var empleadoActual =
+                        db.empleados.Find(idOriginalEmpleado);
 
-                    SqlCommand cmd = new SqlCommand(consulta, cn);
-                    cmd.Parameters.AddWithValue("@id", textidemp.Text);
+                    if (empleadoActual == null)
+                    {
+                        MessageBox.Show("No se encontró el empleado.");
+                        return;
+                    }
 
-                    cn.Open();
-                    cmd.ExecuteNonQuery();
-                    cn.Close();
+                    db.empleados.Remove(empleadoActual);
 
+                    db.SaveChanges();
 
-
-                    MessageBox.Show("Empleado eliminado correctamente",
-                        "Se elimino correctamente",
+                    MessageBox.Show(
+                        "Empleado eliminado correctamente.",
+                        "Se eliminó correctamente",
                         MessageBoxButtons.OK,
-                        MessageBoxIcon.Asterisk);
-
-
-                    MostrarEmpleados();
-                    Limpiar();
+                        MessageBoxIcon.Information);
                 }
+
+                MostrarEmpleados();
+                Limpiar();
+            }
         }
+
+        // Buscar empleados por nombre
 
         private void butb_Click(object sender, EventArgs e)
         {
-            using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+            using (var db = Conexion.CrearContexto())
             {
-                string consulta = @"SELECT 
-                            e.id_empleado,
-                            e.nombre,
-                            e.telefono,
-                            r.nombre_rol,
-                            t.nombre_turno
-                            FROM empleados e
-                            INNER JOIN roles r ON e.id_rol = r.id_rol
-                            INNER JOIN turnos t ON e.id_turnos = t.id_turnos
-                            WHERE e.nombre LIKE @buscar";
+                string busqueda = textbusca.Text.Trim();
 
-                SqlDataAdapter da = new SqlDataAdapter(consulta, cn);
+                var consulta =
+                    from emp in db.empleados
+                    join r in db.roles
+                    on emp.id_rol equals r.id_rol
+                    join t in db.turnos
+                    on emp.id_turnos equals t.id_turnos
+                    select new
+                    {
+                        emp.id_empleado,
+                        emp.nombre,
+                        emp.telefono,
+                        r.nombre_rol,
+                        t.nombre_turno
+                    };
 
-                da.SelectCommand.Parameters.AddWithValue("@buscar", "%" + textbusca.Text + "%");
+                if (!string.IsNullOrWhiteSpace(busqueda))
+                {
+                    consulta = consulta.Where(empleado =>
+                        empleado.nombre.Contains(busqueda));
+                }
 
-                DataTable dt = new DataTable();
-                da.Fill(dt);
+                dgvemp.DataSource = consulta.ToList();
 
-                dgvemp.DataSource = dt;
+                dgvemp.AutoSizeColumnsMode =
+                    DataGridViewAutoSizeColumnsMode.Fill;
+
+                dgvemp.SelectionMode =
+                    DataGridViewSelectionMode.FullRowSelect;
+
+                dgvemp.ReadOnly = true;
+                dgvemp.AllowUserToAddRows = false;
             }
         }
 
-        private void Frmempleados_Load(object sender, EventArgs e)
-        {
 
-        }
-
-        private void textidemp_KeyPress(object sender, KeyPressEventArgs e)
+        // Validar el ID
+        private void textidemp_KeyPress(
+            object sender, KeyPressEventArgs e)
         {
-            if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar))
-            {
-                e.Handled = true;
-            }
-        }
-
-        private void textnombrem_KeyPress(object sender, KeyPressEventArgs e)
-        {
-            if (!char.IsControl(e.KeyChar) && !char.IsLetter(e.KeyChar))
-            {
-                e.Handled = true;
-            }
-        }
-
-        private void texttel_KeyPress(object sender, KeyPressEventArgs e)
-        {
-            if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar))
+            if (!char.IsControl(e.KeyChar) &&
+                !char.IsDigit(e.KeyChar))
             {
                 e.Handled = true;
             }
         }
 
-        private void dgvemp_CellContentClick(object sender, DataGridViewCellEventArgs e)
+        // Validar el nombre
+        private void textnombrem_KeyPress(
+            object sender, KeyPressEventArgs e)
+        {
+            if (!char.IsControl(e.KeyChar) &&
+                !char.IsLetter(e.KeyChar) &&
+                !char.IsWhiteSpace(e.KeyChar))
+            {
+                e.Handled = true;
+            }
+        }
+
+        // Validar el teléfono
+        private void texttel_KeyPress(
+            object sender, KeyPressEventArgs e)
+        {
+            if (!char.IsControl(e.KeyChar) &&
+                !char.IsDigit(e.KeyChar))
+            {
+                e.Handled = true;
+            }
+        }
+
+        private void dgvemp_CellContentClick(
+            object sender, DataGridViewCellEventArgs e)
         {
 
         }
     }
 }
-
-
 

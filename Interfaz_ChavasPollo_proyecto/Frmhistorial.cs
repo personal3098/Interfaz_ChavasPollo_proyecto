@@ -1,10 +1,5 @@
-﻿using Microsoft.Data.SqlClient;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Text;
+﻿using System;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace Interfaz_ChavasPollo_proyecto
@@ -14,158 +9,196 @@ namespace Interfaz_ChavasPollo_proyecto
         public Frmhistorial()
         {
             InitializeComponent();
-            CargarOrdenes();
         }
-        SqlConnection cn =
-    new SqlConnection(Conexion.cadena);
 
+        // Cargar las órdenes al abrir el formulario
         private void Frmhistorial_Load(object sender, EventArgs e)
         {
-
+            CargarOrdenes();
         }
 
+        // Mostrar todas las órdenes registradas
         private void CargarOrdenes()
         {
-            using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+            using (var db = Conexion.CrearContexto())
             {
-                string sql = @"
-        SELECT 
-            o.id_orden,
-            o.fecha,
-            e.nombre AS empleado,
-            f.total
-        FROM ordenes o
-        INNER JOIN empleados e ON o.id_empleado = e.id_empleado
-        INNER JOIN facturacion f ON o.id_orden = f.id_orden
-        ORDER BY o.id_orden DESC";
+                var datos = (
+                    from o in db.ordenes
+                    join emp in db.empleados
+                    on o.id_empleado equals emp.id_empleado
+                    join f in db.facturacions
+                    on o.id_orden equals f.id_orden
+                    orderby o.id_orden descending
+                    select new
+                    {
+                        o.id_orden,
+                        o.fecha,
+                        empleado = emp.nombre,
+                        f.total
+                    }
+                ).ToList();
 
-                SqlDataAdapter da = new SqlDataAdapter(sql, cn);
-                DataTable dt = new DataTable();
-
-                da.Fill(dt);
-                da.Fill(dt);
+                dgvhisto.DataSource = datos;
 
                 dgvhisto.AutoSizeColumnsMode =
-                 DataGridViewAutoSizeColumnsMode.Fill;
+                    DataGridViewAutoSizeColumnsMode.Fill;
 
                 dgvhisto.SelectionMode =
                     DataGridViewSelectionMode.FullRowSelect;
 
                 dgvhisto.ReadOnly = true;
-
-
-                dgvhisto.DataSource = dt;
+                dgvhisto.AllowUserToAddRows = false;
             }
         }
 
+        // Botón para actualizar el historial
         private void butcargar_Click(object sender, EventArgs e)
         {
             CargarOrdenes();
         }
 
+        // Buscar órdenes por rango de fechas
         private void butbusc_Click(object sender, EventArgs e)
         {
+            DateTime desde = dtpdesde.Value.Date;
 
-            using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+            // Se utiliza el día siguiente como límite exclusivo
+            DateTime hasta = dtphasta.Value.Date.AddDays(1);
+
+            if (desde > dtphasta.Value.Date)
             {
-                string sql = @"
-        SELECT 
-            o.id_orden,
-            o.fecha,
-            e.nombre,
-            f.total
-        FROM ordenes o
-        INNER JOIN empleados e ON o.id_empleado = e.id_empleado
-        INNER JOIN facturacion f ON o.id_orden = f.id_orden
-        WHERE o.fecha BETWEEN @desde AND @hasta
-        ORDER BY o.id_orden DESC";
+                MessageBox.Show(
+                    "La fecha inicial no puede ser posterior a la fecha final.");
 
-                SqlDataAdapter da = new SqlDataAdapter(sql, cn);
+                return;
+            }
 
-                da.SelectCommand.Parameters.AddWithValue("@desde", dtpdesde.Value);
-                da.SelectCommand.Parameters.AddWithValue("@hasta", dtphasta.Value);
+            using (var db = Conexion.CrearContexto())
+            {
+                var datos = (
+                    from o in db.ordenes
+                    join emp in db.empleados
+                    on o.id_empleado equals emp.id_empleado
+                    join f in db.facturacions
+                    on o.id_orden equals f.id_orden
+                    where o.fecha >= desde && o.fecha < hasta
+                    orderby o.id_orden descending
+                    select new
+                    {
+                        o.id_orden,
+                        o.fecha,
+                        empleado = emp.nombre,
+                        f.total
+                    }
+                ).ToList();
 
-                DataTable dt = new DataTable();
-                da.Fill(dt);
+                dgvhisto.DataSource = datos;
 
-                dgvhisto.DataSource = dt;
+                dgvhisto.AutoSizeColumnsMode =
+                    DataGridViewAutoSizeColumnsMode.Fill;
+
+                dgvhisto.SelectionMode =
+                    DataGridViewSelectionMode.FullRowSelect;
+
+                dgvhisto.ReadOnly = true;
+                dgvhisto.AllowUserToAddRows = false;
             }
         }
 
-        private void dgvhisto_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        // Abrir los detalles al hacer doble clic en una orden
+        private void dgvhisto_CellDoubleClick(
+            object sender, DataGridViewCellEventArgs e)
         {
-            if (e.RowIndex >= 0)
-            {
-                int idOrden = Convert.ToInt32(dgvhisto.Rows[e.RowIndex].Cells[0].Value);
+            if (e.RowIndex < 0)
+                return;
 
-                Frmdetallesordenes frm = new Frmdetallesordenes(idOrden);
-                frm.Show();
-            }
+            int idOrden = Convert.ToInt32(
+                dgvhisto.Rows[e.RowIndex]
+                .Cells["id_orden"].Value);
+
+            Frmdetallesordenes frm =
+                new Frmdetallesordenes(idOrden);
+
+            frm.Show();
         }
 
+        // Eliminar todo el historial
         private void buteli_Click(object sender, EventArgs e)
         {
-
-            
-             //1. PRIMERA ADVERTENCIA
-            
+            // Primera confirmación
             DialogResult r1 = MessageBox.Show(
-                "⚠ ADVERTENCIA:\n\nVas a eliminar !TODO! el historial de órdenes.\nEsta accion es IRREPARABLE.",
-                "PRIMERA CONFIRMACION",
+                " ADVERTENCIA:\n\n" +
+                "Vas a eliminar TODO el historial de órdenes.\n" +
+                "Esta acción es IRREPARABLE.",
+                "PRIMERA CONFIRMACIÓN",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning);
 
             if (r1 != DialogResult.Yes)
                 return;
 
-            // =========================
-            // 2. SEGUNDA ADVERTENCIA (CRÍTICA)
-            // =========================
+            // Segunda confirmación
             DialogResult r2 = MessageBox.Show(
-                " ÚLTIMA ADVERTENCIA:\n\nEsta acción NO se puede deshacer.\nSe perderán TODAS las ventas permanentemente.\n\n¿Seguro que desea continuar?",
-                "Confirmación final",
+                "ÚLTIMA ADVERTENCIA:\n\n" +
+                "Esta acción NO se puede deshacer.\n" +
+                "Se perderán TODAS las ventas permanentemente.\n\n" +
+                "¿Seguro que desea continuar?",
+                "CONFIRMACIÓN FINAL",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Error);
 
             if (r2 != DialogResult.Yes)
                 return;
 
-            // =========================
-            // 3. BORRADO EN BASE DE DATOS
-            // =========================
             try
             {
-                using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+                using (var db = Conexion.CrearContexto())
                 {
-                    cn.Open();
+                    // Iniciar una transacción
+                    using (var transaccion =
+                        db.Database.BeginTransaction())
+                    {
+                        // Obtener todos los registros
+                        var detalles = db.detalleordenes.ToList();
+                        var facturas = db.facturacions.ToList();
+                        var ordenes = db.ordenes.ToList();
 
-                    // IMPORTANTE: primero detalle, luego facturación, luego orden
-                    SqlCommand cmd1 = new SqlCommand("DELETE FROM detalleordenes", cn);
-                    cmd1.ExecuteNonQuery();
+                        // Eliminar primero los detalles
+                        db.detalleordenes.RemoveRange(detalles);
 
-                    SqlCommand cmd2 = new SqlCommand("DELETE FROM facturacion", cn);
-                    cmd2.ExecuteNonQuery();
+                        // Después las facturas
+                        db.facturacions.RemoveRange(facturas);
 
-                    SqlCommand cmd3 = new SqlCommand("DELETE FROM ordenes", cn);
-                    cmd3.ExecuteNonQuery();
+                        // Finalmente las órdenes
+                        db.ordenes.RemoveRange(ordenes);
+
+                        // Guardar los cambios
+                        db.SaveChanges();
+
+                        // Confirmar la transacción
+                        transaccion.Commit();
+                    }
                 }
 
-                // =========================
-                // 4. LIMPIAR INTERFAZ
-                // =========================
+                // Limpiar la tabla del formulario
                 dgvhisto.DataSource = null;
-                dgvhisto.Rows.Clear();
 
-                MessageBox.Show("OK se ha eliminado TODO el historial",
-                    "Se ha hecho",
+                MessageBox.Show(
+                    "Se ha eliminado todo el historial correctamente.",
+                    "Eliminación completada",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error: " + ex.Message);
+                MessageBox.Show(
+                    "Error al eliminar el historial: " + ex.Message,
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
             }
         }
     }
 }
+
 

@@ -28,10 +28,6 @@
         /// </summary>
         private void InitializeComponent()
         {
-            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges1 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
-            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges2 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
-            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges3 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
-            Guna.UI2.WinForms.Suite.CustomizableEdges customizableEdges4 = new Guna.UI2.WinForms.Suite.CustomizableEdges();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Frmempleados));
             panel1 = new Panel();
             pictureBox1 = new PictureBox();
@@ -53,8 +49,6 @@
             buteli = new Button();
             btnmod = new Button();
             butagr = new Button();
-            guna2TextBox1 = new Guna.UI2.WinForms.Guna2TextBox();
-            guna2Button1 = new Guna.UI2.WinForms.Guna2Button();
             panel1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)pictureBox1).BeginInit();
             ((System.ComponentModel.ISupportInitialize)dgvemp).BeginInit();
@@ -210,11 +204,11 @@
             // 
             dgvemp.BackgroundColor = Color.White;
             dgvemp.ColumnHeadersHeight = 29;
-            dgvemp.Dock = DockStyle.Bottom;
-            dgvemp.Location = new Point(0, 497);
+            dgvemp.Dock = DockStyle.Fill;
+            dgvemp.Location = new Point(0, 129);
             dgvemp.Name = "dgvemp";
             dgvemp.RowHeadersWidth = 51;
-            dgvemp.Size = new Size(1057, 141);
+            dgvemp.Size = new Size(1057, 509);
             dgvemp.TabIndex = 7;
             dgvemp.CellClick += dgvemp_CellClick;
             dgvemp.CellContentClick += dgvemp_CellContentClick;
@@ -296,52 +290,11 @@
             butagr.UseVisualStyleBackColor = false;
             butagr.Click += butagr_Click;
             // 
-            // guna2TextBox1
-            // 
-            guna2TextBox1.BorderRadius = 50;
-            guna2TextBox1.Cursor = Cursors.IBeam;
-            guna2TextBox1.CustomizableEdges = customizableEdges1;
-            guna2TextBox1.DefaultText = "jack mejia ";
-            guna2TextBox1.DisabledState.BorderColor = Color.FromArgb(208, 208, 208);
-            guna2TextBox1.DisabledState.FillColor = Color.FromArgb(226, 226, 226);
-            guna2TextBox1.DisabledState.ForeColor = Color.FromArgb(138, 138, 138);
-            guna2TextBox1.DisabledState.PlaceholderForeColor = Color.FromArgb(138, 138, 138);
-            guna2TextBox1.FocusedState.BorderColor = Color.FromArgb(94, 148, 255);
-            guna2TextBox1.Font = new Font("Segoe UI", 9F);
-            guna2TextBox1.HoverState.BorderColor = Color.FromArgb(94, 148, 255);
-            guna2TextBox1.Location = new Point(262, 264);
-            guna2TextBox1.Margin = new Padding(3, 4, 3, 4);
-            guna2TextBox1.Name = "guna2TextBox1";
-            guna2TextBox1.PlaceholderText = "";
-            guna2TextBox1.SelectedText = "";
-            guna2TextBox1.ShadowDecoration.CustomizableEdges = customizableEdges2;
-            guna2TextBox1.Size = new Size(234, 70);
-            guna2TextBox1.TabIndex = 15;
-            // 
-            // guna2Button1
-            // 
-            guna2Button1.BorderRadius = 30;
-            guna2Button1.CustomizableEdges = customizableEdges3;
-            guna2Button1.DisabledState.BorderColor = Color.DarkGray;
-            guna2Button1.DisabledState.CustomBorderColor = Color.DarkGray;
-            guna2Button1.DisabledState.FillColor = Color.FromArgb(169, 169, 169);
-            guna2Button1.DisabledState.ForeColor = Color.FromArgb(141, 141, 141);
-            guna2Button1.Font = new Font("Segoe UI", 9F);
-            guna2Button1.ForeColor = Color.White;
-            guna2Button1.Location = new Point(47, 183);
-            guna2Button1.Name = "guna2Button1";
-            guna2Button1.ShadowDecoration.CustomizableEdges = customizableEdges4;
-            guna2Button1.Size = new Size(142, 51);
-            guna2Button1.TabIndex = 16;
-            guna2Button1.Text = "guna2Button1";
-            // 
             // Frmempleados
             // 
             AutoScaleDimensions = new SizeF(8F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1057, 704);
-            Controls.Add(guna2Button1);
-            Controls.Add(guna2TextBox1);
             Controls.Add(dgvemp);
             Controls.Add(panel1);
             Controls.Add(panel2);
@@ -380,7 +333,6 @@
         private TextBox textbusca;
         private Label label3;
         private PictureBox pictureBox1;
-        private Guna.UI2.WinForms.Guna2TextBox guna2TextBox1;
-        private Guna.UI2.WinForms.Guna2Button guna2Button1;
+   
     }
 }

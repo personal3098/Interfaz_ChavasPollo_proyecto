@@ -1,132 +1,139 @@
-﻿using Microsoft.Data.SqlClient;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Text;
-using System.Windows.Forms;
+﻿using System;
 using System.IO;
+using System.Linq;
+using System.Windows.Forms;
 
 namespace Interfaz_ChavasPollo_proyecto
 {
     public partial class Frmdetallesordenes : Form
     {
+        private int idOrdenGlobal;
+
         public Frmdetallesordenes(int idOrden)
         {
             InitializeComponent();
+
             idOrdenGlobal = idOrden;
         }
 
-        SqlConnection cn =
-    new SqlConnection(Conexion.cadena);
         private void panel2_Paint(object sender, PaintEventArgs e)
         {
 
         }
 
-        private int idOrdenGlobal;
-
-        //De esta manera muestra la lista de ordenes realizadas segun su id automatizado por identity
-        //(ojo ya se han hecho pruebas por lo que el numero ya va corriendo)
-
+        // Cargar los detalles de la orden
         private void Frmdetallesordenes_Load(object sender, EventArgs e)
         {
-            //Esta se muestra en un label
             labelidorden.Text = "Orden #" + idOrdenGlobal;
 
-            using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+            using (var db = Conexion.CrearContexto())
             {
-                string sql = @" SELECT 
-            m.nombre_platillo AS Producto,
-            d.cantidad,
-            m.precio,
-            (d.cantidad * m.precio) AS Subtotal,
-            o.fecha,
-            e.nombre AS Empleado
-        FROM detalleordenes d
-        INNER JOIN menu m ON d.id_menu = m.id_menu
-        INNER JOIN ordenes o ON d.id_orden = o.id_orden
-        INNER JOIN empleados e ON o.id_empleado = e.id_empleado
-        WHERE d.id_orden = @id";
+                var datos = (
+                    from d in db.detalleordenes
+                    join m in db.menus
+                    on d.id_menu equals m.id_menu
+                    join o in db.ordenes
+                    on d.id_orden equals o.id_orden
+                    join emp in db.empleados
+                    on o.id_empleado equals emp.id_empleado
+                    where d.id_orden == idOrdenGlobal
+                    select new
+                    {
+                        Producto = m.nombre_platillo,
+                        d.cantidad,
+                        m.precio,
+                        Subtotal = d.cantidad * m.precio,
+                        o.fecha,
+                        Empleado = emp.nombre
+                    }
+                ).ToList();
 
-                SqlDataAdapter da = new SqlDataAdapter(sql, cn);
-                da.SelectCommand.Parameters.AddWithValue("@id", idOrdenGlobal);
+                dgvdeta.DataSource = datos;
 
-                DataTable dt = new DataTable();
-                da.Fill(dt);
                 dgvdeta.AutoSizeColumnsMode =
-                DataGridViewAutoSizeColumnsMode.Fill;
+                    DataGridViewAutoSizeColumnsMode.Fill;
 
                 dgvdeta.SelectionMode =
                     DataGridViewSelectionMode.FullRowSelect;
 
                 dgvdeta.ReadOnly = true;
+                dgvdeta.AllowUserToAddRows = false;
 
-                dgvdeta.DataSource = dt;
-
-
-                if (dt.Rows.Count > 0)
+                if (datos.Count > 0)
                 {
-                    labelfecha.Text = dt.Rows[0]["fecha"].ToString();
-                    labelemp.Text = dt.Rows[0]["Empleado"].ToString();
+                    labelfecha.Text = datos[0].fecha.ToString();
+                    labelemp.Text = datos[0].Empleado;
                 }
 
                 CalcularTotal();
             }
         }
 
+        // Calcular el total de la orden
         private void CalcularTotal()
         {
             decimal total = 0;
 
             foreach (DataGridViewRow row in dgvdeta.Rows)
             {
-                if (row.Cells[3].Value != null)
+                if (row.Cells["Subtotal"].Value != null)
                 {
-                    total += Convert.ToDecimal(row.Cells[3].Value);
+                    total += Convert.ToDecimal(
+                        row.Cells["Subtotal"].Value);
                 }
             }
 
             labeltotal.Text = "Total: " + total.ToString("0.00");
         }
-        //El boton imprimir imprime en un documento de texto la factura segun el formato dado. salio un poco incomodo la posicion
-        //si se quiere cambiar cree una carpeta y cambie el directorio actual
+
+        // Generar el ticket en un archivo de texto
         private void butimp_Click(object sender, EventArgs e)
         {
             try
             {
-                string ruta = @"C:\Users\hack-\source\repos\Interfaz_ChavasPollo_proyecto\Tickets";
+                string ruta = Path.Combine(
+                    Application.StartupPath,
+                    "Tickets");
 
                 if (!Directory.Exists(ruta))
                 {
                     Directory.CreateDirectory(ruta);
                 }
 
-                string archivo = ruta + $@"\Ticket_Orden_{idOrdenGlobal}.txt";
+                string archivo = Path.Combine(
+                    ruta,
+                    $"Ticket_Orden_{idOrdenGlobal}.txt");
 
                 using (StreamWriter sw = new StreamWriter(archivo))
                 {
                     sw.WriteLine("CHAVAS POLLO");
                     sw.WriteLine("------------------------");
+
                     sw.WriteLine("Orden #: " + idOrdenGlobal);
                     sw.WriteLine("Fecha: " + labelfecha.Text);
                     sw.WriteLine("Empleado: " + labelemp.Text);
+
                     sw.WriteLine("");
-                    sw.WriteLine("Producto\t/Cant     \t/Subtotal");
+                    sw.WriteLine("Producto\tCant\tSubtotal");
                     sw.WriteLine("------------------------");
 
                     decimal total = 0;
 
                     foreach (DataGridViewRow row in dgvdeta.Rows)
                     {
-                        if (row.Cells[0].Value != null)
+                        if (row.Cells["Producto"].Value != null)
                         {
-                            string producto = row.Cells[0].Value.ToString();
-                            string cantidad = row.Cells[1].Value.ToString();
-                            string subtotal = row.Cells[3].Value.ToString();
+                            string producto =
+                                row.Cells["Producto"].Value.ToString();
 
-                            sw.WriteLine($"{producto}\t{cantidad}\t{subtotal}");
+                            string cantidad =
+                                row.Cells["cantidad"].Value.ToString();
+
+                            string subtotal =
+                                row.Cells["Subtotal"].Value.ToString();
+
+                            sw.WriteLine(
+                                $"{producto}\t{cantidad}\t{subtotal}");
 
                             total += Convert.ToDecimal(subtotal);
                         }
@@ -137,8 +144,9 @@ namespace Interfaz_ChavasPollo_proyecto
                     sw.WriteLine("------------------------");
                 }
 
-                MessageBox.Show("Ticket generado en su carpeta de seleccion",
-                    "Accion compleatada",
+                MessageBox.Show(
+                    "Ticket generado correctamente en la carpeta Tickets.",
+                    "Acción completada",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
             }

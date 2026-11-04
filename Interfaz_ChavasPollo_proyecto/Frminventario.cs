@@ -1,12 +1,8 @@
-﻿using Microsoft.Data.SqlClient;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Text;
+﻿using System;
+using System.Linq;
 using System.Windows.Forms;
-using static System.Runtime.InteropServices.JavaScript.JSType;
+using Microsoft.Data.SqlClient;
+
 
 namespace Interfaz_ChavasPollo_proyecto
 {
@@ -16,7 +12,7 @@ namespace Interfaz_ChavasPollo_proyecto
         public Frminventario()
         {
             InitializeComponent();
-            Cargarprov();
+            
         }
         // Aqui estamos llamando la clase conexion para no tener que escribir tanto en cada form cada ves que querramos cargar los datos de sql
         //Para mas info vea la clase conexion
@@ -24,9 +20,41 @@ namespace Interfaz_ChavasPollo_proyecto
     new SqlConnection(Conexion.cadena);
         private void Frminventario_Load(object sender, EventArgs e)
         {
+
+            Cargarprov();
+            //ProbarConexionEF();
             CargarUnidades();
+            MostrarInventario();
 
         }
+        //para provar la conexion con entity
+        //private void ProbarConexionEF()
+        //{
+        //  try
+        //          {
+        //            using (var db = Conexion.CrearContexto())
+        //         {
+        //           int cantidad = db.inventarios.Count();
+        //
+        //         MessageBox.Show(
+        //           "Conexión exitosa con Entity Framework.\n" +
+        //         "Productos encontrados: " + cantidad,
+        //       "Chavas Pollo",
+        //     MessageBoxButtons.OK,
+        //   MessageBoxIcon.Information
+        //);
+        //}
+        //}
+        //catch (Exception ex)
+        //{
+        //  MessageBox.Show(
+        //    "Error al conectar:\n" + ex.Message,
+        //  "Error",
+        //MessageBoxButtons.OK,
+        // MessageBoxIcon.Error
+        //);
+        // }
+        // }
 
         //Aqui se llaman y cargan los datos de la tabla ya creada en sql tambien esta esta ubicada en
         //el load por que se va a usar con instrucciones y no al iniciar el form, escribimos el codigo de igual forma el cual hariamos
@@ -37,39 +65,42 @@ namespace Interfaz_ChavasPollo_proyecto
         //ubicarlo en una posicion
         private void CargarUnidades()
         {
-            using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+            using (var db = Conexion.CrearContexto())
             {
-                string consulta = "SELECT id_unidad, nombrre_unidad FROM unidad_medida";
+                var unidades = db.unidad_medida
+                    .Select(u => new
+                    {
+                        u.id_unidad,
+                        u.nombrre_unidad
+                    })
+                    .ToList();
 
-                SqlDataAdapter da = new SqlDataAdapter(consulta, cn);
-
-                DataTable dt = new DataTable();
-
-                da.Fill(dt);
-
-                cmbuni.DataSource = dt;
+                cmbuni.DataSource = unidades;
                 cmbuni.DisplayMember = "nombrre_unidad";
                 cmbuni.ValueMember = "id_unidad";
+
+                cmbuni.SelectedIndex = -1;
             }
         }
         // El metodo cargar para llamar mas datos de la tabla con la diferencia de que este se hara al iniciar el form 
         //por eso esta ubicado cerca de inicializar componente misma idea para el combobox proveedor
         private void Cargarprov()
         {
-            using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+            using (var db = Conexion.CrearContexto())
             {
+                var proveedores = db.proveedores
+                    .Select(p => new
+                    {
+                        p.id_proveedor,
+                        p.nombre_prov
+                    })
+                    .ToList();
 
-                string consulta = "SELECT id_proveedor, nombre_prov FROM proveedores";
-
-                SqlDataAdapter da = new SqlDataAdapter(consulta, cn);
-
-                DataTable dt = new DataTable();
-
-                da.Fill(dt);
-
-                cmbprov.DataSource = dt;
+                cmbprov.DataSource = proveedores;
                 cmbprov.DisplayMember = "nombre_prov";
                 cmbprov.ValueMember = "id_proveedor";
+
+                cmbprov.SelectedIndex = -1;
             }
         }
         // De esta manera llamamos y cargamos el inventario a este form esto lo vamos a ocupar mas tarde,
@@ -78,37 +109,38 @@ namespace Interfaz_ChavasPollo_proyecto
         //y proveedores ya que los vamos a usar todo en un datatable
         private void MostrarInventario()
         {
-            using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+            using (var db = Conexion.CrearContexto())
             {
-                string consulta = @"SELECT
-                                   i.id_inv,
-                               i.nombre_prod,
-                                  i.cantidad,
-                                   i.id_unidad,
-                                 i.id_proveedor,
-                                u.nombrre_unidad,
-                                    p.nombre_prov
-                                 FROM inventario i
-                           INNER JOIN unidad_medida u
-                          ON i.id_unidad = u.id_unidad
-                                INNER JOIN proveedores p
-                         ON i.id_proveedor = p.id_proveedor ";
+                var datos = (
+                    from i in db.inventarios
+                    join u in db.unidad_medida
+                        on i.id_unidad equals u.id_unidad
+                    join p in db.proveedores
+                        on i.id_proveedor equals p.id_proveedor
+                    select new
+                    {
+                        i.id_inv,
+                        i.nombre_prod,
+                        i.cantidad,
+                        i.id_unidad,
+                        i.id_proveedor,
+                        u.nombrre_unidad,
+                        p.nombre_prov
+                    }
+                ).ToList();
 
-                SqlDataAdapter da = new SqlDataAdapter(consulta, cn);
-
-                DataTable dt = new DataTable();
-
-                da.Fill(dt);
-                //Esto es solo para darle un formato para que se vea mas limpio el codigo lo copie y pegue en varias forms
                 dgvinv.AutoSizeColumnsMode =
-                DataGridViewAutoSizeColumnsMode.Fill;
+                    DataGridViewAutoSizeColumnsMode.Fill;
 
                 dgvinv.SelectionMode =
                     DataGridViewSelectionMode.FullRowSelect;
 
                 dgvinv.ReadOnly = true;
 
-                dgvinv.DataSource = dt;
+                dgvinv.AllowUserToAddRows = false;
+
+                dgvinv.DataSource = datos;
+
                 dgvinv.Columns["id_unidad"].Visible = false;
                 dgvinv.Columns["id_proveedor"].Visible = false;
             }
@@ -124,92 +156,97 @@ namespace Interfaz_ChavasPollo_proyecto
         //Este es el metodo para el boton agregar llamamos la conexion como siempre 
         private void button1_Click(object sender, EventArgs e)
         {
-            using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+            // Validar campos vacíos
+            if (string.IsNullOrWhiteSpace(textid.Text) ||
+                string.IsNullOrWhiteSpace(textnombrep.Text) ||
+                string.IsNullOrWhiteSpace(textcant.Text))
             {
+                MessageBox.Show("Complete todos los campos.");
+                return;
+            }
 
-                //Excepciones si no se escribio nada o falto un campo
-                if (textid.Text == "" ||
-                     textnombrep.Text == "" ||
-                     textcant.Text == "")
+            // Validar ID
+            if (!int.TryParse(textid.Text, out int id))
+            {
+                MessageBox.Show("El ID debe ser un número válido.");
+                textid.Focus();
+                return;
+            }
+
+            // Validar cantidad
+            if (!int.TryParse(textcant.Text, out int cantidad))
+            {
+                MessageBox.Show("La cantidad debe ser un número válido.");
+                textcant.Focus();
+                return;
+            }
+
+            // Validar nombre
+            if (textnombrep.Text.Any(char.IsDigit))
+            {
+                MessageBox.Show("El nombre no puede contener números.");
+                textnombrep.Focus();
+                return;
+            }
+
+            // Validar ComboBox
+            if (cmbuni.SelectedValue == null ||
+                cmbprov.SelectedValue == null)
+            {
+                MessageBox.Show("Seleccione una unidad y un proveedor.");
+                return;
+            }
+
+            try
+            {
+                using (var db = Conexion.CrearContexto())
                 {
-                    MessageBox.Show("Complete todos los campos");
-                    return;
+                    // Comprobar si existe el ID
+                    bool existe = db.inventarios.Any(i => i.id_inv == id);
+
+                    if (existe)
+                    {
+                        MessageBox.Show("El ID ingresado ya está registrado.");
+                        textid.Focus();
+                        return;
+                    }
+
+                    // Crear el nuevo producto
+                    var producto = new Models.inventario
+                    {
+                        id_inv = id,
+                        nombre_prod = textnombrep.Text.Trim(),
+                        cantidad = cantidad,
+                        id_unidad = Convert.ToInt32(cmbuni.SelectedValue),
+                        id_proveedor = Convert.ToInt32(cmbprov.SelectedValue)
+                    };
+
+                    // Agregar a Entity Framework
+                    db.inventarios.Add(producto);
+
+                    // Guardar en SQL Server
+                    db.SaveChanges();
+
+                    MessageBox.Show(
+                        "Producto agregado exitosamente.",
+                        "Acción completada",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information
+                    );
                 }
 
-                if (textnombrep.Text.Any(char.IsDigit))
-                {
-                    MessageBox.Show("El nombre del producto no puede contener números.");
-                    textnombrep.Focus();
-                    return;
-                }
-                if (textid.Text.Any(char.IsAsciiLetter))
-                {
-                    MessageBox.Show("El Id no puede contener letras.");
-                    textnombrep.Focus();
-                    return;
-                }
-                if (textcant.Text.Any(char.IsAsciiLetter))
-                {
-                    MessageBox.Show("la cantidad no puede contener letras.");
-                    textnombrep.Focus();
-                    return;
-                }
 
-                if (cmbuni.SelectedIndex == 0 || cmbprov.SelectedIndex == 0)
-                {
-                    MessageBox.Show("Debe seleccionar una unidad y un proveedor.");
-                    return;
-                }
-                //consulta para hacerlo con sql 
-                string consulta = @"INSERT INTO inventario
-                           (id_inv, nombre_prod, cantidad, id_unidad, id_proveedor)
-                           VALUES
-                           (@id, @nombre, @cantidad, @unidad, @proveedor)";
-
-                string verificar = "SELECT COUNT(*) FROM inventario WHERE id_inv = @id";
-
-                SqlCommand cmdVerificar = new SqlCommand(verificar, cn);
-                cmdVerificar.Parameters.AddWithValue("@id", int.Parse(textid.Text));
-
-                cn.Open();
-
-                int existe = (int)cmdVerificar.ExecuteScalar();
-
-                if (existe > 0)
-                {
-                    MessageBox.Show("El numero de ID ingresado ya está registrado.");
-                    cn.Close();
-                    textid.Focus();
-                    return;
-                }
-
-                cn.Close();
-
-                SqlCommand cmd = new SqlCommand(consulta, cn);
-                //para que añada los valores ingresados segun los campos 
-
-                cmd.Parameters.AddWithValue("@id", int.Parse(textid.Text));
-                cmd.Parameters.AddWithValue("@nombre", textnombrep.Text);
-                cmd.Parameters.AddWithValue("@cantidad", int.Parse(textcant.Text));
-                cmd.Parameters.AddWithValue("@unidad", cmbuni.SelectedValue);
-                cmd.Parameters.AddWithValue("@proveedor", cmbprov.SelectedValue);
-
-                cn.Open();
-                cmd.ExecuteNonQuery();
-                // si el resultado fue un exito
-                MessageBox.Show(
-                         "Producto agregado exitosamente",
-                          "Accion completada",
-                             MessageBoxButtons.OK,
-                            MessageBoxIcon.Information);
-                textid.Clear();
-                textnombrep.Clear();
-                textcant.Clear();
-
-                cmbuni.SelectedIndex = 0;
-                cmbprov.SelectedIndex = 0;
-                //Muestra el inventario para ahorrarse tocar el boton actualizar
+                LimpiarCampos();
                 MostrarInventario();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "No se pudo agregar el producto:\n" + ex.Message,
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
             }
         }
 
@@ -227,25 +264,29 @@ namespace Interfaz_ChavasPollo_proyecto
         //a autorellenar los datos en caso de querer modificarlos
         private void dgvinv_CellClick(object sender, DataGridViewCellEventArgs e)
         {
+            if (e.RowIndex < 0)
+                return;
 
-            if (e.RowIndex >= 0 && e.RowIndex <= (dgvinv.RowCount - 2))
-            {
-                DataGridViewRow fila = dgvinv.Rows[e.RowIndex];
+            DataGridViewRow fila = dgvinv.Rows[e.RowIndex];
 
-                idOriginal = Convert.ToInt32(fila.Cells["id_inv"].Value);
+            idOriginal = Convert.ToInt32(fila.Cells["id_inv"].Value);
 
+            textid.Text = fila.Cells["id_inv"].Value.ToString();
 
-                textid.Text = fila.Cells["id_inv"].Value.ToString();
-                textnombrep.Text = fila.Cells["nombre_prod"].Value.ToString();
-                textcant.Text = fila.Cells["cantidad"].Value.ToString();
+            textnombrep.Text =
+                fila.Cells["nombre_prod"].Value.ToString();
 
-                cmbuni.SelectedValue =
+            textcant.Text =
+                fila.Cells["cantidad"].Value.ToString();
+
+            cmbuni.SelectedValue =
                 Convert.ToInt32(fila.Cells["id_unidad"].Value);
 
-                cmbprov.SelectedValue =
-                    Convert.ToInt32(fila.Cells["id_proveedor"].Value);
+            cmbprov.SelectedValue =
+                Convert.ToInt32(fila.Cells["id_proveedor"].Value);
 
-            }
+            // No permitir cambiar la clave primaria
+            textid.ReadOnly = true;
         }
 
 
@@ -256,45 +297,81 @@ namespace Interfaz_ChavasPollo_proyecto
         //nuevo id
         private void btnmodi_Click_1(object sender, EventArgs e)
         {
-
-            using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+            if (idOriginal <= 0)
             {
-                string consulta = @"UPDATE inventario
-                             SET id_inv = @nuevoId,
-                             nombre_prod = @nombre,
-                              cantidad = @cantidad,
-                                id_unidad = @unidad,
-                              id_proveedor = @proveedor
-                              WHERE id_inv = @idOriginal";
+                MessageBox.Show("Seleccione un producto para modificar.");
+                return;
+            }
 
-                SqlCommand cmd = new SqlCommand(consulta, cn);
+            if (string.IsNullOrWhiteSpace(textnombrep.Text) ||
+                string.IsNullOrWhiteSpace(textcant.Text))
+            {
+                MessageBox.Show("Complete todos los campos.");
+                return;
+            }
 
-                cmd.Parameters.AddWithValue("@nuevoId",
-                    int.Parse(textid.Text));
+            if (!int.TryParse(textcant.Text, out int cantidad))
+            {
+                MessageBox.Show("La cantidad debe ser numérica.");
+                return;
+            }
 
-                cmd.Parameters.AddWithValue("@idOriginal",
-                    idOriginal);
+            if (textnombrep.Text.Any(char.IsDigit))
+            {
+                MessageBox.Show("El nombre no puede contener números.");
+                return;
+            }
 
-                cmd.Parameters.AddWithValue("@nombre",
-                    textnombrep.Text);
+            if (cmbuni.SelectedValue == null ||
+                cmbprov.SelectedValue == null)
+            {
+                MessageBox.Show("Seleccione una unidad y un proveedor.");
+                return;
+            }
 
-                cmd.Parameters.AddWithValue("@cantidad",
-                    int.Parse(textcant.Text));
+            try
+            {
+                using (var db = Conexion.CrearContexto())
+                {
+                    var producto = db.inventarios.Find(idOriginal);
 
-                cmd.Parameters.AddWithValue("@unidad",
-                    cmbuni.SelectedValue);
+                    if (producto == null)
+                    {
+                        MessageBox.Show("No se encontró el producto.");
+                        return;
+                    }
 
-                cmd.Parameters.AddWithValue("@proveedor",
-                    cmbprov.SelectedValue);
+                    producto.nombre_prod = textnombrep.Text.Trim();
 
-                cn.Open();
-                cmd.ExecuteNonQuery();
-                MessageBox.Show("Producto modificado correctamente",
-                    "Accion Realizada",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
+                    producto.cantidad = cantidad;
 
+                    producto.id_unidad =
+                        Convert.ToInt32(cmbuni.SelectedValue);
+
+                    producto.id_proveedor =
+                        Convert.ToInt32(cmbprov.SelectedValue);
+
+                    db.SaveChanges();
+
+                    MessageBox.Show(
+                        "Producto modificado correctamente.",
+                        "Acción realizada",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information
+                    );
+                }
+
+                LimpiarCampos();
                 MostrarInventario();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "Error al modificar:\n" + ex.Message,
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
             }
         }
         //aqui se creo idoriginal para ser llamado y que guarde valores
@@ -304,38 +381,58 @@ namespace Interfaz_ChavasPollo_proyecto
         //de si o no
         private void button3_Click(object sender, EventArgs e)
         {
+            if (idOriginal <= 0)
+            {
+                MessageBox.Show("Seleccione un producto para eliminar.");
+                return;
+            }
+
             DialogResult respuesta = MessageBox.Show(
-        "¿Desea eliminar este producto?",
-        "Confirmar eliminación",
-        MessageBoxButtons.YesNo,
-        MessageBoxIcon.Question);
+                "¿Desea eliminar este producto?",
+                "Confirmar eliminación",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question
+            );
 
             if (respuesta == DialogResult.Yes)
             {
-                using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+                try
                 {
-                    string consulta =
-                        "DELETE FROM inventario WHERE id_inv = @id";
+                    using (var db = Conexion.CrearContexto())
+                    {
+                        var producto = db.inventarios.Find(idOriginal);
 
-                    SqlCommand cmd = new SqlCommand(consulta, cn);
+                        if (producto == null)
+                        {
+                            MessageBox.Show("El producto ya no existe.");
+                            return;
+                        }
 
-                    cmd.Parameters.AddWithValue("@id",
-                        int.Parse(textid.Text));
+                        db.inventarios.Remove(producto);
 
-                    cn.Open();
+                        db.SaveChanges();
 
-                    cmd.ExecuteNonQuery();
+                        MessageBox.Show(
+                            "Producto eliminado correctamente.",
+                            "Borrado completado",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information
+                        );
+                    }
 
-                    MessageBox.Show("Producto eliminado",
-                        "Borrado Completado",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Exclamation);
-
+                    LimpiarCampos();
                     MostrarInventario();
-
-                    textid.Clear();
-                    textnombrep.Clear();
-                    textcant.Clear();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(
+                        "No se pudo eliminar el producto.\n" +
+                        "Compruebe si está relacionado con otros registros.\n\n" +
+                        ex.Message,
+                        "Error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
                 }
             }
         }
@@ -343,35 +440,63 @@ namespace Interfaz_ChavasPollo_proyecto
         //lo ingresado inclusive si es una letra, Tiene su propio textbox que solo se utiliza para buscar
         private void button4_Click(object sender, EventArgs e)
         {
-            using (SqlConnection cn = new SqlConnection(Conexion.cadena))
+            string busqueda = textbusc.Text.Trim();
+
+            using (var db = Conexion.CrearContexto())
             {
-                string consulta = @"SELECT
-             i.id_inv,
-             i.nombre_prod,
-             i.cantidad,
-             i.id_unidad,
-             i.id_proveedor,
-             u.nombrre_unidad,
-             p.nombre_prov
-          FROM inventario i
-          INNER JOIN unidad_medida u
-             ON i.id_unidad = u.id_unidad
-          INNER JOIN proveedores p
-             ON i.id_proveedor = p.id_proveedor
-            WHERE i.nombre_prod LIKE @buscar";
+                var consulta =
+                    from i in db.inventarios
+                    join u in db.unidad_medida
+                        on i.id_unidad equals u.id_unidad
+                    join p in db.proveedores
+                        on i.id_proveedor equals p.id_proveedor
+                    select new
+                    {
+                        i.id_inv,
+                        i.nombre_prod,
+                        i.cantidad,
+                        i.id_unidad,
+                        i.id_proveedor,
+                        u.nombrre_unidad,
+                        p.nombre_prov
+                    };
 
-                SqlDataAdapter da = new SqlDataAdapter(consulta, cn);
+                if (!string.IsNullOrWhiteSpace(busqueda))
+                {
+                    consulta = consulta.Where(i =>
+                        i.nombre_prod.Contains(busqueda));
+                }
 
-                da.SelectCommand.Parameters.AddWithValue(
-                    "@buscar",
-                    "%" + textbusc.Text + "%");
+                dgvinv.AutoSizeColumnsMode =
+                    DataGridViewAutoSizeColumnsMode.Fill;
 
-                DataTable dt = new DataTable();
+                dgvinv.SelectionMode =
+                    DataGridViewSelectionMode.FullRowSelect;
 
-                da.Fill(dt);
+                dgvinv.ReadOnly = true;
 
-                dgvinv.DataSource = dt;
+                dgvinv.AllowUserToAddRows = false;
+
+                dgvinv.DataSource = consulta.ToList();
+
+                dgvinv.Columns["id_unidad"].Visible = false;
+                dgvinv.Columns["id_proveedor"].Visible = false;
             }
+        }
+        private void LimpiarCampos()
+        {
+            textid.Clear();
+            textnombrep.Clear();
+            textcant.Clear();
+
+            cmbuni.SelectedIndex = -1;
+            cmbprov.SelectedIndex = -1;
+
+            idOriginal = 0;
+
+            textid.ReadOnly = false;
+
+            textid.Focus();
         }
 
         private void textid_KeyPress(object sender, KeyPressEventArgs e)

@@ -4,18 +4,26 @@ using System.Text;
 using System.Data;
 using Microsoft.Data.SqlClient;
 
+using Microsoft.EntityFrameworkCore;
+using Interfaz_ChavasPollo_proyecto.Data;
+
 namespace Interfaz_ChavasPollo_proyecto
-{//Al crear la clase nos evitamos tener que escribir tanto para llamar a la base de datos solo
- //la llamamos con conexion.cadena
+{
     public class Conexion
     {
-      
         public static string cadena =
             @"Server=localhost\SQLEXPRESS;
-            Database=proyectoFinal_ChavasPollo;
-            Trusted_Connection=True;
-            TrustServerCertificate=True;";
+              Database=proyectoFinal_ChavasPollo;
+              Trusted_Connection=True;
+              TrustServerCertificate=True;";
+
+        public static ChavasPolloContext CrearContexto()
+        {
+            var opciones = new DbContextOptionsBuilder<ChavasPolloContext>();
+
+            opciones.UseSqlServer(cadena);
+
+            return new ChavasPolloContext(opciones.Options);
+        }
     }
 }
-    
-
